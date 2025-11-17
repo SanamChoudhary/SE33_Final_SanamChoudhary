@@ -23,69 +23,133 @@ def add(a: int, b: int) -> int:
 @mcp.tool
 def analyze_java_source(path: str):
     """
-    Analyze Java files and extract class names + method signatures.
+    Analyze all Java files in a directory and extract class names + method signatures.
+    Returns a list of class dictionaries with their methods.
     """
-    with open(path, "r") as f:
-        code = f.read()
+    result = []
 
-    class_name_match = re.search(r"class\s+(\w+)", code)
-    class_name = class_name_match.group(1) if class_name_match else "UnknownClass"
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if file.endswith(".java"):
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        code = f.read()
+                except Exception as e:
+                    print(f"Failed to read {file_path}: {e}")
+                    continue
 
-    methods = re.findall(
-        r"public\s+(\w+)\s+(\w+)\((.*?)\)", code
-    )
-    
-    method_list = []
-    for return_type, method_name, params in methods:
-        param_list = []
-        if params.strip():
-            for p in params.split(","):
-                p = p.strip().split()
-                param_type = p[0]
-                param_name = p[1]
-                param_list.append({"type": param_type, "name": param_name})
-        method_list.append({
-            "return": return_type,
-            "method": method_name,
-            "params": param_list
-        })
+                class_name_match = re.search(r"class\s+(\w+)", code)
+                class_name = class_name_match.group(1) if class_name_match else "UnknownClass"
 
-    return {
-        "class_name": class_name,
-        "methods": method_list
-    }
+                methods = re.findall(r"public\s+(\w+)\s+(\w+)\((.*?)\)", code)
+
+                method_list = []
+                for return_type, method_name, params in methods:
+                    param_list = []
+                    if params.strip():
+                        for p in params.split(","):
+                            p = p.strip().split()
+                            if len(p) == 2:  # type and name
+                                param_type = p[0]
+                                param_name = p[1]
+                                param_list.append({"type": param_type, "name": param_name})
+                    method_list.append({
+                        "return": return_type,
+                        "method": method_name,
+                        "params": param_list
+                    })
+
+                result.append({
+                    "file": file_path,
+                    "class_name": class_name,
+                    "methods": method_list
+                })
+
+    return result
 
 # ----------------------------------------------------
-# 2. Generate JUnit Test File
+# 2. Generate JUnit Test Files (Fixed)
 # ----------------------------------------------------
 @mcp.tool
-def generate_tests(class_name: str, methods: list, output_dir: str):
+def generate_tests(analyzed_classes: list, output_dir: str):
     """
-    Generate a basic JUnit test file.
+    Generate JUnit test files for each class in analyzed_classes.
     """
     os.makedirs(output_dir, exist_ok=True)
-    test_path = os.path.join(output_dir, f"{class_name}Test.java")
+    generated_files = []
 
-    test_code = [
-        "import org.junit.jupiter.api.*;",
-        f"public class {class_name}Test {{",
-        f"    {class_name} obj = new {class_name}();"
-    ]
+    # Default values based on Java types
+    type_defaults = {
+        "int": "0",
+        "long": "0L",
+        "float": "0.0f",
+        "double": "0.0",
+        "boolean": "false",
+        "char": "'a'",
+        "String": "\"test\""
+    }
 
-    for m in methods:
-        test_code.append("    @Test")
-        test_code.append(f"    public void test_{m['method']}() {{")
-        args = ", ".join("0" for _ in m["params"])
-        test_code.append(f"        obj.{m['method']}({args});")
-        test_code.append("        Assertions.assertTrue(true);")
-        test_code.append("    }")
-    test_code.append("}")
+    for cls in analyzed_classes:
+        # Validate input
+        if not isinstance(cls, dict):
+            continue
+        class_name = cls.get("class_name")
+        if not class_name:
+            continue  # skip invalid entries
+        methods = cls.get("methods", [])
 
-    with open(test_path, "w") as f:
-        f.write("\n".join(test_code))
+        test_path = os.path.join(output_dir, f"{class_name}Test.java")
 
-    return {"generated": test_path}
+        # Start generating test code
+        test_code = [
+            "import org.junit.jupiter.api.*;",
+            f"public class {class_name}Test {{",
+            f"    {class_name} obj = new {class_name}();",
+            ""
+        ]
 
+        for m in methods:
+            method_name = m.get("method")
+            if not method_name:
+                continue
+            params = m.get("params", [])
+            # Generate default arguments based on type
+            args = []
+            for p in params:
+                param_type = p.get("type", "Object")
+                default_value = type_defaults.get(param_type, "null")  # fallback to null
+                args.append(default_value)
+            arg_str = ", ".join(args)
+
+            test_code.append("    @Test")
+            test_code.append(f"    public void test_{method_name}() {{")
+            test_code.append(f"        obj.{method_name}({arg_str});")
+            test_code.append("        Assertions.assertTrue(true);  // TODO: improve assertion")
+            test_code.append("    }")
+            test_code.append("")
+
+        test_code.append("}")
+
+        # Write file
+        with open(test_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(test_code))
+
+        generated_files.append(test_path)
+
+    return {"generated": generated_files}
+
+# ----------------------------------------------------
+# 3. Workflow Tool: Analyze and Generate Tests
+# ----------------------------------------------------
+@mcp.tool
+def analyze_and_generate_tests(java_src_dir: str, test_output_dir: str):
+    """
+    Full workflow: analyze Java source code, then generate JUnit test files.
+    """
+    analyzed_classes = analyze_java_source(java_src_dir)
+    result = generate_tests(analyzed_classes=analyzed_classes, output_dir=test_output_dir)
+    return result
 
 # ----------------------------------------------------
 # 3. Run mvn test
@@ -306,6 +370,78 @@ def git_pull_request(base: str, title: str, body: str):
         base=base
     )
     return {"pr_url": pr.html_url}
+
+# ----------------------------------------------------
+# 10. Specification-Based Test Generator
+# ----------------------------------------------------
+@mcp.tool
+def spec_based_test_generator(java_path: str, output_path: str = "generated_tests"):
+    """
+    Analyze Java methods and generate specification-based tests (BVA + Equivalence Classes).
+    """
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    java_files = [os.path.join(root, f)
+                  for root, _, files in os.walk(java_path)
+                  for f in files if f.endswith(".java")]
+
+    tests_generated = []
+
+    for java_file in java_files:
+        with open(java_file, "r") as f:
+            content = f.read()
+
+        # Simple regex to find public methods
+        method_matches = re.findall(r'public\s+(\w+)\s+(\w+)\((.*?)\)', content)
+
+        for return_type, method_name, params in method_matches:
+            param_list = [p.strip() for p in params.split(",") if p.strip()]
+            test_cases = []
+
+            for param in param_list:
+                p_type, p_name = param.split()[-2:]
+                
+                if p_type in ["int", "long", "double", "float"]:
+                    # Boundary values
+                    test_cases.extend([
+                        {p_name: 0},
+                        {p_name: 1},
+                        {p_name: -1},
+                        {p_name: 100},  # Example max
+                        {p_name: -100}  # Example min
+                    ])
+                elif p_type == "boolean":
+                    test_cases.extend([{p_name: True}, {p_name: False}])
+                elif p_type == "String":
+                    test_cases.extend([
+                        {p_name: ""},
+                        {p_name: "a"},
+                        {p_name: "test"}
+                    ])
+                # Add more types as needed
+
+            # Write a JUnit test file
+            test_class_name = f"Test_{method_name.capitalize()}"
+            test_file_path = os.path.join(output_path, f"{test_class_name}.java")
+            with open(test_file_path, "w") as tf:
+                tf.write(f"import org.junit.jupiter.api.Test;\n")
+                tf.write(f"import static org.junit.jupiter.api.Assertions.*;\n\n")
+                tf.write(f"public class {test_class_name} {{\n")
+                tf.write(f"    @Test\n")
+                tf.write(f"    public void test{method_name.capitalize()}() {{\n")
+                
+                for case in test_cases:
+                    args = ", ".join(str(v) for v in case.values())
+                    tf.write(f"        // Example: {case}\n")
+                    tf.write(f"        // assertEquals(expected, new ClassName().{method_name}({args}));\n\n")
+
+                tf.write(f"    }}\n")
+                tf.write(f"}}\n")
+
+            tests_generated.append(test_file_path)
+
+    return {"tests_generated": tests_generated}
 
 if __name__ == "__main__":
     mcp.run(transport="sse") 
