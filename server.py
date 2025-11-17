@@ -190,6 +190,19 @@ def jacoco_parse(path: str):
 # ----------------------------------------------------
 @mcp.tool
 def git_status():
+    """
+    Git Status Tool
+
+    Description:
+    - Checks the current Git repository for changes.
+    - Returns a summary of the repository's state, including:
+        - is_dirty: True if there are any changes (staged or unstaged)
+        - unstaged: list of files modified but not staged
+        - staged: list of files staged for commit
+        - untracked: list of untracked files
+    Usage:
+    - Use this tool before committing changes to ensure you know the repository status.
+    """
     repo = git.Repo(os.getcwd())
     return {
         "is_dirty": repo.is_dirty(),
@@ -206,6 +219,16 @@ IGNORE = ["target", ".idea", "*.class", "*.log"]
 
 @mcp.tool
 def git_add_all():
+    """
+    Git Add All Tool
+
+    Description:
+    - Stages all changes in the current Git repository.
+    - Ignores specified files/folders (e.g., build artifacts like 'target', '.class', logs).
+    - Prepares all files for commit.
+    Usage:
+    - Use this tool to stage all project changes automatically before committing.
+    """
     repo = git.Repo(os.getcwd())
     repo.git.add(all=True)
     return {"status": "staged"}
@@ -215,6 +238,15 @@ def git_add_all():
 # ----------------------------------------------------
 @mcp.tool
 def git_commit(message: str):
+    """
+    Git Commit Tool
+
+    Description:
+    - Commits staged changes in the Git repository with a provided commit message.
+    - Returns status indicating whether a commit was made or if there was nothing to commit.
+    Usage:
+    - Always run after git_add_all to commit changes to the repository.
+    """
     repo = git.Repo(os.getcwd())
     if repo.is_dirty():
         repo.git.commit("-m", message)
@@ -226,6 +258,16 @@ def git_commit(message: str):
 # ----------------------------------------------------
 @mcp.tool
 def git_push(remote="origin"):
+    """
+    Git Push Tool
+
+    Description:
+    - Pushes the current branch to the specified remote repository (default 'origin').
+    - Automatically sets upstream if not already configured.
+    Usage:
+    - Use after committing changes to update the remote repository.
+    - Can be combined with git_commit for automated workflows.
+    """
     repo = git.Repo(os.getcwd())
     repo.git.push("--set-upstream", remote, repo.active_branch.name)
     return {"status": "pushed", "branch": repo.active_branch.name}
@@ -237,6 +279,20 @@ def git_push(remote="origin"):
 
 @mcp.tool
 def git_pull_request(base: str, title: str, body: str):
+    """
+    GitHub Pull Request Tool
+
+    Description:
+    - Creates a pull request on GitHub for the current branch.
+    - Uses environment variable GITHUB_TOKEN for authentication.
+    - Parameters:
+        - base: branch to merge into (usually 'main' or 'master')
+        - title: PR title
+        - body: PR description
+    Usage:
+    - Use this tool to open pull requests after automated test improvements or code changes.
+    - Returns the URL of the created PR for tracking.
+    """
     token = os.getenv("GITHUB_TOKEN")
     g = Github(token)
 
