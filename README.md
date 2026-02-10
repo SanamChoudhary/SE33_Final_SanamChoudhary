@@ -1,4 +1,4 @@
-# SE333 Final Project – AI-Powered Testing Agent
+# AI-Powered Testing Agent
 
 ## Overview
 This project demonstrates an intelligent software testing agent built using the **Model Context Protocol (MCP)**. The agent automatically generates, executes, and iterates on **JUnit test cases** for Java projects, aiming to maximize code coverage and improve software reliability.  
