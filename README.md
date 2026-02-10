@@ -4,8 +4,7 @@
 This project demonstrates an intelligent software testing agent built using the **Model Context Protocol (MCP)**. The agent automatically generates, executes, and iterates on **JUnit test cases** for Java projects, aiming to maximize code coverage and improve software reliability.  
 
 The project integrates AI-assisted development tools with traditional software engineering practices, including Maven, JaCoCo, and Git workflows.
-
-Github Repo: https://github.com/SanamChoudhary/SE33_Final_SanamChoudhary 
+ 
 
 ---
 
