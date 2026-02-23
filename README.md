@@ -49,7 +49,7 @@ The project integrates AI-assisted development tools with traditional software e
 
 1. Run server.py
 2. Go to extensions and run the "Sanam Choudhary - MCP" server. Hover over the server and select "start"
-3. Upload your Java project into the SE33Final folder
+3. Upload your Java project into the Sample Java Folder
 4. In the chat, type "run #file:tester:prompt:md on <javaproject>" and the testing agent will analyze your code, create tests, examine jacoco reports, and provide feedback.
 
 
